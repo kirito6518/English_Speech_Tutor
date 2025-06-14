@@ -28,8 +28,17 @@
         <div class="learncard" id="chatHistory">
           <div v-for="(message, index) in messages" :key="index" :class="['message', message.type]">
             <div v-if="message.type === 'ai'" class="message-ai-container">
-              <div class="ai-content" v-html="message.content"></div>
-              <button class="play-button" @click="playMessage(message)">
+              <div 
+                class="ai-content" 
+                :class="{ collapsed: !message.expanded }"
+                @click="toggleMessageExpand(message)"
+              >
+                <div v-if="!message.expanded" class="expand-prompt">
+                  点击查看回复
+                </div>
+                <div v-else v-html="message.content"></div>
+              </div>
+              <button class="play-button" @click.stop="playMessage(message)">
                 <img :src="require('@/assets/image/play_icon.png')" alt="播放">
               </button>
             </div>
@@ -178,6 +187,10 @@ export default {
       console.log('停止说话');
     };
 
+    // 切换消息展开状态的方法
+    const toggleMessageExpand = (message) => {
+      message.expanded = !message.expanded;
+    };
 
     const resetSettings = () => {
       Object.assign(settings, {
@@ -225,7 +238,8 @@ const startStream = (message) => {
         if (messages.value.length === 0 || messages.value[messages.value.length - 1].type !== 'ai') {
           messages.value.push({
             type: 'ai',
-            content: newContent  // 设置新消息的内容
+            content: newContent, // 设置新消息的内容
+            expanded: false // 添加展开状态标志
           });
         } else {
           // 否则，更新最后一条消息的内容
@@ -477,6 +491,7 @@ console.log("开始说话");
       playMessage,
       isPlaying,
       togglePlay,
+      toggleMessageExpand,
             handleRecognitionResult
     };
   }
@@ -1246,5 +1261,38 @@ console.log("开始说话");
   background: linear-gradient(to bottom, #B8960C, #9A7B0A);
   border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+/* 折叠状态样式 */
+.ai-content.collapsed {
+  cursor: pointer;
+  background: linear-gradient(135deg, #f0f0f0, #e0e0e0) !important;
+  color: #666 !important;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 展开提示文字 */
+.expand-prompt {
+  font-size: 16px;
+  font-weight: bold;
+  color: #8B4513;
+  text-align: center;
+  padding: 10px;
+}
+
+/* 播放按钮位置调整 */
+.play-button {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+}
+
+/* 确保消息容器相对定位 */
+.message-ai-container {
+  position: relative;
 }
 </style>
