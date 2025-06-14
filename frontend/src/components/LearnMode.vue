@@ -51,6 +51,54 @@
         </div>
       </div>
 
+    <!-- 统计面板 -->
+    <div id="stats-container">
+      <button class="toggle-stats" @click="showStatsPanel = !showStatsPanel">
+        {{ showStatsPanel ? '隐藏统计 ▼' : '显示统计 ▲' }}
+      </button>
+      
+      <div class="stats-panel" :class="{ expanded: showStatsPanel }">
+        <div class="stats-summary">
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.avgSpeed }}</div>
+            <div class="stat-label">字/分钟</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.totalWords }}</div>
+            <div class="stat-label">总字数</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ Math.round(stats.totalTime) }}</div>
+            <div class="stat-label">总时长(秒)</div>
+          </div>
+        </div>
+        
+        <div class="stats-details">
+          <h4>对话详情</h4>
+          <div class="stats-table">
+            <div class="stats-header">
+              <div>时间</div>
+              <div>问题字数</div>
+              <div>回答字数</div>
+              <div>时长(秒)</div>
+              <div>速度(字/分)</div>
+            </div>
+            <div 
+              v-for="msg in stats.messages" 
+              :key="msg.id" 
+              class="stats-row"
+            >
+              <div>{{ msg.timestamp }}</div>
+              <div>{{ msg.userInput.length }}</div>
+              <div>{{ msg.wordCount }}</div>
+              <div>{{ msg.duration }}</div>
+              <div>{{ msg.wpm }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
       <div class="form-container">
         <input type="text" v-model="userInput" class="form-control" 
                placeholder="向诗小语提问吧！" @keyup.enter="sendMessage">
@@ -176,6 +224,14 @@ export default {
       character: 'default'
     });
 
+    const showStatsPanel = ref(false); // 控制统计面板显示
+    const stats = reactive({
+      totalWords: 0, // 总字数
+      totalTime: 0, // 总时间（秒）
+      avgSpeed: 0, // 平均每分钟字数
+      messages: [] // 每条消息的统计
+    });
+
     const isPlaying = ref(false);
 
     const toggleSettings = () => {
@@ -190,6 +246,34 @@ export default {
     // 切换消息展开状态的方法
     const toggleMessageExpand = (message) => {
       message.expanded = !message.expanded;
+    };
+
+    // 统计方法
+    const startMessageTimer = () => {
+      return Date.now();
+    };
+
+    const recordMessageStats = (startTime, userInput, aiResponse) => {
+      const endTime = Date.now();
+      const duration = (endTime - startTime) / 1000; // 秒
+      const wordCount = aiResponse.replace(/<[^>]*>/g, "").match(/\b\w+\b/g)?.length || 0;
+      
+      // 更新总统计
+      stats.totalWords += wordCount;
+      stats.totalTime += duration;
+      stats.avgSpeed = stats.totalTime > 0 ? 
+        Math.round((stats.totalWords / stats.totalTime) * 60) : 0;
+      
+      // 添加消息统计
+      stats.messages.unshift({
+        id: Date.now(),
+        userInput,
+        response: aiResponse,
+        duration: duration.toFixed(1),
+        wordCount,
+        wpm: duration > 0 ? Math.round((wordCount / duration) * 60) : 0,
+        timestamp: new Date().toLocaleTimeString()
+      });
     };
 
     const resetSettings = () => {
@@ -212,17 +296,20 @@ export default {
     return;  // 不发送请求
   }
 
+  const startTime = startMessageTimer();
+  const userMsg = userInput.value.trim();
+
   messages.value.push({
     type: 'user',
-    content: userInput.value
+    content: userMsg
   });
 
   // 调用 DeepSeek API
-  startStream(userInput.value);
+  startStream(userMsg, startTime); // 传递startTime
   userInput.value = '';  // 清空输入框
 };
 
-const startStream = (message) => {
+const startStream = (message, startTime) => {
   if (!message.trim()) return;
 
   const eventSource = new EventSource(`/api/chat/get_and_return?user_input=${encodeURIComponent(message)}`);
@@ -249,7 +336,9 @@ const startStream = (message) => {
 
       // 检查流是否结束
       if (data.choices[0].finish_reason === "stop") {
-        speak(messages.value[messages.value.length - 1].content);
+        const aiResponse = messages.value[messages.value.length - 1].content;
+        recordMessageStats(startTime, message, aiResponse);
+        speak(aiResponse);
         console.log("流式数据传输已结束");
         eventSource.close();  // 结束流连接
       }
@@ -492,6 +581,8 @@ console.log("开始说话");
       isPlaying,
       togglePlay,
       toggleMessageExpand,
+      showStatsPanel, // 添加这行
+      stats,
             handleRecognitionResult
     };
   }
@@ -1294,5 +1385,110 @@ console.log("开始说话");
 /* 确保消息容器相对定位 */
 .message-ai-container {
   position: relative;
+}
+
+#stats-container {
+  position: fixed;
+  bottom: 100px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.toggle-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #D4AF37;
+  border-radius: 20px;
+  padding: 8px 15px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-stats:hover {
+  background: #D4AF37;
+  color: white;
+}
+
+.toggle-stats img {
+  width: 20px;
+  height: 20px;
+}
+
+.stats-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.5s ease;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-top: 10px;
+  width: 500px;
+}
+
+.stats-panel.expanded {
+  max-height: 500px;
+}
+
+.stats-summary {
+  display: flex;
+  justify-content: space-around;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: #D4AF37;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.stats-details {
+  padding: 15px;
+}
+
+.stats-details h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.stats-table {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  font-size: 13px;
+}
+
+.stats-header, .stats-row {
+  display: contents;
+}
+
+.stats-header > div {
+  padding: 8px 5px;
+  background: #f5f5f5;
+  font-weight: bold;
+  text-align: center;
+}
+
+.stats-row > div {
+  padding: 8px 5px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+}
+
+.stats-row:nth-child(even) > div {
+  background: #f9f9f9;
 }
 </style>
