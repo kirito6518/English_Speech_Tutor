@@ -1,11 +1,12 @@
 <template>
   <div id="app">
-    <router-view></router-view>  <!-- 用来显示匹配的路由组件 -->
+    <!-- 可以保留导航栏或直接去掉 -->
+    <router-view/>
   </div>
 </template>
 
 <script>
 export default {
   name: 'App'
-};
+}
 </script>
