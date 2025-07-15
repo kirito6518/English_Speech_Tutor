@@ -156,7 +156,7 @@ Send messages to OpenAI API and get responses.
 ## Project Structure
 
 ```
-oral-practice/
+English_Speech_Tutor/
 ├── src/
 │   ├── views/
 │   │   └── ChatView.vue          # Main application component
